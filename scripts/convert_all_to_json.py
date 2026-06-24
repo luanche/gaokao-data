@@ -1,6 +1,6 @@
 """
 高考数据 - 全部 Excel 转 JSON 脚本
-将 /root/projects/gaokao-data/03、重庆-2026高考志愿填报资料/ 下的所有 xlsx 文件
+将 excel_data/03、重庆-2026高考志愿填报资料/ 下的所有 xlsx 文件
 按类别转换成结构化的 JSON 文件，输出到 json_data/ 目录。
 """
 
@@ -12,7 +12,7 @@ from collections import defaultdict
 
 # ============== 配置 ==============
 DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                         "03、重庆-2026高考志愿填报资料")
+                         "excel_data", "03、重庆-2026高考志愿填报资料")
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "json_data")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
