@@ -1,0 +1,19 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.tmp
+*.swp
+last_recommendation.txt
+
+# Excel source data (user needs to download themselves)
+excel_data/
+
+# Node
+node_modules/
