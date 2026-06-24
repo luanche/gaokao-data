@@ -92,13 +92,15 @@ def get_major_history(majors_data, school_name, major_name, kelei, batch):
                 break
     return history
 
-def format_history(h, ref_score):
-    """格式化历史数据，与参考分对比显示趋势"""
+def format_history(h, equiv_scores, ref_score):
+    """格式化历史数据，用每年各自的等效分对比显示趋势"""
     parts = []
     for y in [2025, 2024, 2023]:
         if y in h and h[y]['最低分'] is not None:
             sc = float(h[y]['最低分'])
-            diff = sc - ref_score
+            # 用该年自己的等效分作对比基准
+            baseline = equiv_scores.get(y, ref_score)
+            diff = sc - baseline
             if diff > 0:
                 trend = f"↑{abs(diff):.0f}"
             elif diff < 0:
@@ -257,7 +259,7 @@ def main():
             for s in items:
                 name = s.get('院校名称', '')
                 hist = get_school_history(schools, name, kelei, batch)
-                trend = format_history(hist, ref_score)
+                trend = format_history(hist, equiv_scores, ref_score)
                 tags = ""
                 if s.get('是否985') == '是': tags += "985 "
                 if s.get('是否211') == '是': tags += "211"
@@ -281,7 +283,7 @@ def main():
             # 显示该院校历史最低分趋势
             sch_hist = get_school_history(schools, sname, kelei, batch)
             if sch_hist:
-                sch_trend = format_history(sch_hist, ref_score)
+                sch_trend = format_history(sch_hist, equiv_scores, ref_score)
             else:
                 sch_trend = ""
             
@@ -291,7 +293,7 @@ def main():
             for m in majors_list[:5]:
                 major_name = m.get('专业名称', '')
                 m_hist = get_major_history(majors, sname, major_name, kelei, batch)
-                m_trend = format_history(m_hist, ref_score)
+                m_trend = format_history(m_hist, equiv_scores, ref_score)
                 print(f"      ├ {str(major_name)[:20]:<20} "
                       f"25年:最低{str(m.get('最低分数','')):<6} "
                       f"位次{str(m.get('最低位次','')):<8}")
