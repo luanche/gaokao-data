@@ -63,244 +63,39 @@ def safe_float(v):
 
 
 # ================================================================
-#  第一部分: 4-重庆高考历史数据 （2017-2024 历史数据）
-# ================================================================
-
-def convert_historical_enrollment_plans():
-    """重庆_招生计划 (2017-2024)"""
-    base = os.path.join(DATA_ROOT, "4-重庆高考历史数据", "重庆_招生计划")
-    all_records = []
-    for fname in sorted(os.listdir(base)):
-        if not fname.endswith('.xlsx') or '副本' in fname:
-            continue
-        fp = os.path.join(base, fname)
-        try:
-            df = pd.read_excel(fp)
-        except Exception as e:
-            print(f"  ⚠ 读取失败: {fname} - {e}")
-            continue
-        year = re.search(r'(\d{4})', fname)
-        year_str = year.group(1) if year else "未知"
-        for _, row in df.iterrows():
-            record = {
-                "省份": sanitize(row.get("省份")),
-                "年份": sanitize(row.get("年份")) or year_str,
-                "科类": sanitize(row.get("科类")),
-                "批次": sanitize(row.get("批次")),
-                "院校代码": sanitize(row.get("院校代码")),
-                "院校名称": sanitize(row.get("院校名称")),
-                "专业代码": sanitize(row.get("专业代码")),
-                "专业名称": sanitize(row.get("专业名称")),
-                "专业备注": sanitize(row.get("专业备注")),
-                "计划数": parse_int(row.get("计划数")),
-                "学制": parse_int(row.get("学制")),
-                "学费": parse_int(row.get("学费")),
-                "选考要求": sanitize(row.get("选考要求")),
-            }
-            all_records.append(record)
-    save_json(all_records, "historical_enrollment_plans.json")
-    return all_records
-
-
-def convert_historical_major_scores():
-    """重庆_专业分数线 (2017-2023) — 注意不同年份列名略有差异"""
-    base = os.path.join(DATA_ROOT, "4-重庆高考历史数据", "重庆_专业分数线")
-    all_records = []
-    for fname in sorted(os.listdir(base)):
-        if not fname.endswith('.xlsx') or '副本' in fname:
-            continue
-        fp = os.path.join(base, fname)
-        try:
-            xl = pd.ExcelFile(fp)
-        except Exception as e:
-            print(f"  ⚠ 读取失败: {fname} - {e}")
-            continue
-        year_match = re.search(r'(\d{4})', fname)
-        year_str = year_match.group(1) if year_match else "未知"
-
-        for sheet_name in xl.sheet_names:
-            df = pd.read_excel(fp, sheet_name=sheet_name)
-            # 根据列名自动检测格式
-            cols = list(df.columns)
-            if '学校' in cols or '院校名称' in cols:
-                # 2017 格式: 年份, 学校, 省份, 城市, 软科排名, _985, _211, 双一流, 科类, 批次,
-                #           门类, 一级学科, 专业, 平均分, 最高分, 最低分, 最低分排名, ...
-                for _, row in df.iterrows():
-                    record = {
-                        "年份": sanitize(row.get("年份")) or year_str,
-                        "院校名称": sanitize(row.get("学校")),
-                        "科类": sanitize(row.get("科类")),
-                        "批次": sanitize(row.get("批次")),
-                        "门类": sanitize(row.get("门类")),
-                        "一级学科": sanitize(row.get("一级学科")),
-                        "专业名称": sanitize(row.get("专业")),
-                        "最低分": safe_float(row.get("最低分")),
-                        "最低位次": parse_int(row.get("最低分排名")),
-                        "最高分": safe_float(row.get("最高分")),
-                        "平均分": safe_float(row.get("平均分")),
-                        "省份": sanitize(row.get("省份")),
-                        "城市": sanitize(row.get("城市")),
-                        "软科排名": parse_int(row.get("软科排名")),
-                        "985": sanitize(row.get("_985")),
-                        "211": sanitize(row.get("_211")),
-                        "双一流": sanitize(row.get("双一流")),
-                        "办学性质": sanitize(row.get("办学性质")),
-                        "学校归属": sanitize(row.get("学校归属")),
-                        "学校代码": sanitize(row.get("全国统一招生代码")),
-                        "招生类型": sanitize(row.get("招生类型")),
-                        "学历类别": sanitize(row.get("学历类别")),
-                        "生源地": sanitize(row.get("生源地")) or "重庆",
-                    }
-                    all_records.append(record)
-            else:
-                # 2018-2023 格式: 年份, 生源地, 科类, 批次, 院校名称, 专业名称, 专业备注, 最低分, 最低位次, 最高分, 平均分
-                for _, row in df.iterrows():
-                    record = {
-                        "年份": sanitize(row.get("年份")) or year_str,
-                        "生源地": sanitize(row.get("生源地")) or "重庆",
-                        "科类": sanitize(row.get("科类")),
-                        "批次": sanitize(row.get("批次")),
-                        "院校名称": sanitize(row.get("院校名称")),
-                        "专业名称": sanitize(row.get("专业名称")),
-                        "专业备注": sanitize(row.get("专业备注")),
-                        "最低分": safe_float(row.get("最低分")),
-                        "最低位次": parse_int(row.get("最低位次")),
-                        "最高分": safe_float(row.get("最高分")),
-                        "平均分": safe_float(row.get("平均分")),
-                    }
-                    all_records.append(record)
-    save_json(all_records, "historical_major_scores.json")
-    return all_records
-
-
-def convert_historical_toudang_lines():
-    """重庆_投档线 (2017-2023)"""
-    base = os.path.join(DATA_ROOT, "4-重庆高考历史数据", "重庆_投档线")
-    all_records = []
-    for fname in sorted(os.listdir(base)):
-        if not fname.endswith('.xlsx') or '副本' in fname:
-            continue
-        fp = os.path.join(base, fname)
-        try:
-            xl = pd.ExcelFile(fp)
-        except Exception as e:
-            print(f"  ⚠ 读取失败: {fname} - {e}")
-            continue
-        year_match = re.search(r'(\d{4})', fname)
-        year_str = year_match.group(1) if year_match else "未知"
-        for sheet_name in xl.sheet_names:
-            df = pd.read_excel(fp, sheet_name=sheet_name)
-            for _, row in df.iterrows():
-                record = {
-                    "年份": sanitize(row.get("年份")) or year_str,
-                    "生源地": sanitize(row.get("生源地")) or "重庆",
-                    "院校名称": sanitize(row.get("学校")),
-                    "省份": sanitize(row.get("省份")),
-                    "城市": sanitize(row.get("城市")),
-                    "软科排名": parse_int(row.get("软科排名")),
-                    "985": sanitize(row.get("985")),
-                    "211": sanitize(row.get("211")),
-                    "双一流": sanitize(row.get("双一流")),
-                    "科类": sanitize(row.get("科类")),
-                    "批次": sanitize(row.get("批次")),
-                    "专业组": sanitize(row.get("专业组")),
-                    "选科要求": sanitize(row.get("选科要求")),
-                    "最低分": safe_float(row.get("最低分")),
-                    "最低分排名": parse_int(row.get("最低分排名")),
-                    "省控线": parse_int(row.get("省控线")),
-                    "办学性质": sanitize(row.get("办学性质")),
-                    "学校归属": sanitize(row.get("学校归属")),
-                    "学历类别": sanitize(row.get("学历类别")),
-                }
-                all_records.append(record)
-    save_json(all_records, "historical_toudang_lines.json")
-    return all_records
-
-
-def convert_score_distribution():
-    """一分一段表 — 多种格式"""
-    base = os.path.join(DATA_ROOT, "4-重庆高考历史数据", "重庆市-一分一段表")
-    all_records = []
-
-    # 1) 重庆_一分一段_2022_2017.xlsx
-    fp1 = os.path.join(base, "重庆_一分一段_2022_2017.xlsx")
-    if os.path.exists(fp1):
-        try:
-            df = pd.read_excel(fp1, sheet_name="一分一段查询")
-            for _, row in df.iterrows():
-                record = {
-                    "省份": sanitize(row.get("省份")),
-                    "年份": sanitize(row.get("年份")),
-                    "科类": sanitize(row.get("科类")),
-                    "分数": sanitize(row.get("分数")),
-                    "本段人数": parse_int(row.get("本段人数")),
-                    "累计人数": parse_int(row.get("累计人数")),
-                }
-                all_records.append(record)
-            print(f"  ✓ 读取: 重庆_一分一段_2022_2017.xlsx")
-        except Exception as e:
-            print(f"  ⚠ 读取失败: 重庆_一分一段_2022_2017.xlsx - {e}")
-
-    # 2) 重庆市2024年高考-一分一段表-物理类.xlsx
-    for cat, fname in [("物理类", "重庆市2024年高考-一分一段表-物理类.xlsx"),
-                       ("历史类", "重庆市2024年高考-一分一段表-历史类.xlsx")]:
-        fp = os.path.join(base, fname)
-        if os.path.exists(fp):
-            try:
-                df = pd.read_excel(fp, sheet_name="Sheet1")
-                # 列名可能是: ['2024年物理类含加分一分段表', 'Unnamed: 1', 'Unnamed: 2']
-                col_score = df.columns[0]
-                col_count = df.columns[1]
-                col_cum = df.columns[2]
-                for _, row in df.iterrows():
-                    score = sanitize(row[col_score])
-                    if score is None or str(score) in ('分数段', 'nan', ''):
-                        continue
-                    all_records.append({
-                        "省份": "重庆",
-                        "年份": "2024",
-                        "科类": cat,
-                        "分数": str(score).replace("及以上", "+"),
-                        "本段人数": parse_int(row[col_count]),
-                        "累计人数": parse_int(row[col_cum]),
-                    })
-                print(f"  ✓ 读取: {fname}")
-            except Exception as e:
-                print(f"  ⚠ 读取失败: {fname} - {e}")
-
-    save_json(all_records, "historical_score_distribution.json")
-    return all_records
-
-
 def convert_province_control_lines():
-    """省控线/批次线"""
-    base = os.path.join(DATA_ROOT, "4-重庆高考历史数据", "重庆市-一分一段表")
+    """省控线/批次线 — 多目录查找"""
     all_records = []
 
-    # 1) 重庆_省控线_批次线_2022_2014.xlsx
-    fp1 = os.path.join(base, "重庆_省控线_批次线_2022_2014.xlsx")
-    if os.path.exists(fp1):
+    # 查找目录1: 历史数据目录 (可能不存在)
+    base_old = os.path.join(DATA_ROOT, "4-重庆高考历史数据", "重庆市-一分一段表")
+    # 查找目录2: 新的志愿填报必备资料目录
+    base_new = os.path.join(DATA_ROOT, "1-志愿填报必备资料", "7、全国各省市批次线")
+
+    # ---- 从新目录读取 ----
+    # 1) 22-24年省控线汇总表.xlsx
+    fp_new = os.path.join(base_new, "22-24年省控线汇总表.xlsx")
+    if os.path.exists(fp_new):
         try:
-            df = pd.read_excel(fp1, sheet_name="省控线查询")
+            df = pd.read_excel(fp_new, sheet_name="Sheet1")
             for _, row in df.iterrows():
                 record = {
                     "省份": sanitize(row.get("省份")),
                     "年份": sanitize(row.get("年份")),
-                    "类别": sanitize(row.get("类别")),
-                    "批次": sanitize(row.get("批次")),
+                    "批次": sanitize(row.get("批次/段")),
+                    "类别": sanitize(row.get("科目")),
                     "分数线": parse_int(row.get("分数线")),
-                    "专业分": safe_float(row.get("专业分")),
                 }
                 all_records.append(record)
-            print(f"  ✓ 读取: 重庆_省控线_批次线_2022_2014.xlsx")
+            print(f"  ✓ 读取: 22-24年省控线汇总表.xlsx")
         except Exception as e:
-            print(f"  ⚠ 读取失败: 重庆_省控线_批次线_2022_2014.xlsx - {e}")
+            print(f"  ⚠ 读取失败: 22-24年省控线汇总表.xlsx - {e}")
 
-    # 2) 2014-2023年各地高考历年分数线(批次线).xlsx
-    fp2 = os.path.join(base, "2014-2023年各地高考历年分数线(批次线).xlsx")
-    if os.path.exists(fp2):
+    # 2) 2014-2023年各地高考历年分数线(批次线).xlsx (新目录)
+    fp2_new = os.path.join(base_new, "2014-2023年各地高考历年分数线(批次线).xlsx")
+    if os.path.exists(fp2_new):
         try:
-            df = pd.read_excel(fp2, sheet_name="各地高考历年分数线(批次线)")
+            df = pd.read_excel(fp2_new, sheet_name="各地高考历年分数线(批次线)")
             for _, row in df.iterrows():
                 record = {
                     "地区": sanitize(row.get("地区")),
@@ -310,21 +105,107 @@ def convert_province_control_lines():
                     "分数线": parse_int(row.get("分数线")),
                 }
                 all_records.append(record)
-            print(f"  ✓ 读取: 2014-2023年各地高考历年分数线(批次线).xlsx")
+            print(f"  ✓ 读取: 2014-2023年各地高考历年分数线(批次线).xlsx (新目录)")
         except Exception as e:
             print(f"  ⚠ 读取失败: 2014-2023年各地高考历年分数线(批次线).xlsx - {e}")
+
+    # ---- 从旧目录读取 (兼容旧目录结构) ----
+    if os.path.isdir(base_old):
+        # 1) 重庆_省控线_批次线_2022_2014.xlsx
+        fp1 = os.path.join(base_old, "重庆_省控线_批次线_2022_2014.xlsx")
+        if os.path.exists(fp1):
+            try:
+                df = pd.read_excel(fp1, sheet_name="省控线查询")
+                for _, row in df.iterrows():
+                    record = {
+                        "省份": sanitize(row.get("省份")),
+                        "年份": sanitize(row.get("年份")),
+                        "类别": sanitize(row.get("类别")),
+                        "批次": sanitize(row.get("批次")),
+                        "分数线": parse_int(row.get("分数线")),
+                        "专业分": safe_float(row.get("专业分")),
+                    }
+                    all_records.append(record)
+                print(f"  ✓ 读取: 重庆_省控线_批次线_2022_2014.xlsx")
+            except Exception as e:
+                print(f"  ⚠ 读取失败: 重庆_省控线_批次线_2022_2014.xlsx - {e}")
+
+        # 2) 2014-2023年各地高考历年分数线(批次线).xlsx (旧目录)
+        fp2 = os.path.join(base_old, "2014-2023年各地高考历年分数线(批次线).xlsx")
+        if os.path.exists(fp2):
+            try:
+                df = pd.read_excel(fp2, sheet_name="各地高考历年分数线(批次线)")
+                for _, row in df.iterrows():
+                    record = {
+                        "地区": sanitize(row.get("地区")),
+                        "年份": sanitize(row.get("年份")),
+                        "考生类别": sanitize(row.get("考生类别")),
+                        "批次": sanitize(row.get("批次")),
+                        "分数线": parse_int(row.get("分数线")),
+                    }
+                    all_records.append(record)
+                print(f"  ✓ 读取: 2014-2023年各地高考历年分数线(批次线).xlsx (旧目录)")
+            except Exception as e:
+                print(f"  ⚠ 读取失败: 2014-2023年各地高考历年分数线(批次线).xlsx - {e}")
 
     save_json(all_records, "province_control_lines.json")
     return all_records
 
 
 # ================================================================
-#  第二部分: 3-重庆录取数据22-25【持续更新】 (最新数据)
+#  第二部分: 2-重庆26招生计划+政策汇总【持续更新】 (2026年招生计划)
+# ================================================================
+
+def convert_enrollment_plans_2026():
+    """2026年重庆招生计划 (物理类/历史类)"""
+    base = os.path.join(DATA_ROOT, "2-重庆26招生计划+政策汇总【持续更新】", "1-重庆2026招生计划")
+    all_records = []
+
+    for fname in ["2026重庆招生计划-物理类.xlsx", "2026重庆招生计划-历史类.xlsx"]:
+        fp = os.path.join(base, fname)
+        if not os.path.exists(fp):
+            print(f"  ⚠ 文件不存在: {fname}")
+            continue
+        try:
+            df = pd.read_excel(fp, sheet_name="Sheet1", header=1)
+            for _, row in df.iterrows():
+                record = {
+                    "年份": parse_int(row.get("年份")) or 2026,
+                    "批次": sanitize(row.get("批次")),
+                    "科类": sanitize(row.get("科类")),
+                    "院校代码": str(sanitize(row.get("院校代码", "")) or ""),
+                    "院校名称": sanitize(row.get("院校名称")),
+                    "专业代码": str(sanitize(row.get("专业代码", "")) or ""),
+                    "专业全称": sanitize(row.get("专业全称")),
+                    "专业名称": sanitize(row.get("专业名称")),
+                    "专业备注": sanitize(row.get("专业备注")),
+                    "选科要求": sanitize(row.get("选科要求")),
+                    "专业层次": sanitize(row.get("专业层次")),
+                    "计划人数": parse_int(row.get("计划人数")),
+                    "学制": parse_int(row.get("学制")),
+                    "学费": sanitize(row.get("学费")),
+                    "门类": sanitize(row.get("门类")),
+                    "专业类": sanitize(row.get("专业类")),
+                    "是否新增": sanitize(row.get("是否新增")),
+                }
+                all_records.append(record)
+            print(f"  ✓ 读取: {fname} ({len(df)} 条记录)")
+        except Exception as e:
+            print(f"  ⚠ 读取失败: {fname} - {e}")
+            import traceback
+            traceback.print_exc()
+
+    save_json(all_records, "enrollment_plans_2026.json")
+    return all_records
+
+
+# ================================================================
+#  第三部分: 3-重庆录取数据2022-2025年【持续更新】 (最新数据)
 # ================================================================
 
 def convert_latest_school_scores():
     """22-25年全国高校在重庆的院校录取分数"""
-    base = os.path.join(DATA_ROOT, "3-重庆录取数据22-25【持续更新】")
+    base = os.path.join(DATA_ROOT, "3-重庆录取数据2022-2025年【持续更新】")
     fp = os.path.join(base, "22-25年全国高校在重庆的院校录取分数.xlsx")
     all_records = []
     if os.path.exists(fp):
@@ -356,7 +237,7 @@ def convert_latest_school_scores():
 
 def convert_latest_major_scores():
     """22-25年全国高校在重庆的专业录取分数"""
-    base = os.path.join(DATA_ROOT, "3-重庆录取数据22-25【持续更新】")
+    base = os.path.join(DATA_ROOT, "3-重庆录取数据2022-2025年【持续更新】")
     fp = os.path.join(base, "22-25年全国高校在重庆的专业录取分数.xlsx")
     all_records = []
     if os.path.exists(fp):
@@ -389,7 +270,7 @@ def convert_latest_major_scores():
 
 def convert_latest_enrollment_plans():
     """22-25年全国高校在重庆的招生计划"""
-    base = os.path.join(DATA_ROOT, "3-重庆录取数据22-25【持续更新】")
+    base = os.path.join(DATA_ROOT, "3-重庆录取数据2022-2025年【持续更新】")
     fp = os.path.join(base, "22-25年全国高校在重庆的招生计划.xlsx")
     all_records = []
     if os.path.exists(fp):
@@ -419,7 +300,7 @@ def convert_latest_enrollment_plans():
 
 def convert_latest_score_distribution():
     """一分一段表 (2022-2025, 3-目录下)"""
-    base = os.path.join(DATA_ROOT, "3-重庆录取数据22-25【持续更新】", "一分一段")
+    base = os.path.join(DATA_ROOT, "3-重庆录取数据2022-2025年【持续更新】", "一分一段")
     all_records = []
     for fname in sorted(os.listdir(base)):
         if not fname.endswith('.xlsx') or '副本' in fname:
@@ -451,22 +332,19 @@ def convert_latest_score_distribution():
 
 def convert_combined_table():
     """22-25年重庆（一表联动）.xlsx — 综合大表，按行解析"""
-    base = os.path.join(DATA_ROOT, "3-重庆录取数据22-25【持续更新】")
+    base = os.path.join(DATA_ROOT, "3-重庆录取数据2022-2025年【持续更新】")
     fp = os.path.join(base, "22-25年重庆（一表联动）.xlsx")
     all_records = []
     if os.path.exists(fp):
         try:
             df = pd.read_excel(fp, sheet_name="重庆", header=None)
-            # 第一行是合并表头，第二行开始是数据
             records = []
             for i in range(2, len(df)):
                 row = df.iloc[i]
-                # 只取有有效院校名称的行
                 school = sanitize(row.iloc[6]) if len(row) > 6 else None
                 if school is None or str(school).strip() == '' or str(school) == 'nan':
                     continue
                 record = {
-                    # --- 基本信息 ---
                     "考生类型": sanitize(row.iloc[0]),
                     "年份": sanitize(row.iloc[1]),
                     "生源地": sanitize(row.iloc[2]),
@@ -485,7 +363,6 @@ def convert_combined_table():
                     "学费": sanitize(row.iloc[15]),
                     "门类": sanitize(row.iloc[16]),
                     "专业类": sanitize(row.iloc[17]),
-                    # --- 2025 年数据 ---
                     "2025_录取人数": parse_int(row.iloc[19]),
                     "2025_最低分": safe_float(row.iloc[20]),
                     "2025_最低位次": parse_int(row.iloc[21]),
@@ -493,7 +370,6 @@ def convert_combined_table():
                     "2025_平均位次": parse_int(row.iloc[23]),
                     "2025_最高分": safe_float(row.iloc[24]),
                     "2025_最高位次": parse_int(row.iloc[25]),
-                    # --- 2024 年数据 ---
                     "2024_录取人数": parse_int(row.iloc[28]),
                     "2024_最低分": safe_float(row.iloc[29]),
                     "2024_最低位次": parse_int(row.iloc[30]),
@@ -501,7 +377,6 @@ def convert_combined_table():
                     "2024_平均位次": parse_int(row.iloc[32]),
                     "2024_最高分": safe_float(row.iloc[33]),
                     "2024_最高位次": parse_int(row.iloc[34]),
-                    # --- 2023 年数据 ---
                     "2023_录取人数": parse_int(row.iloc[37]),
                     "2023_最低分": safe_float(row.iloc[38]),
                     "2023_最低位次": parse_int(row.iloc[39]),
@@ -509,7 +384,6 @@ def convert_combined_table():
                     "2023_平均位次": parse_int(row.iloc[41]),
                     "2023_最高分": safe_float(row.iloc[42]),
                     "2023_最高位次": parse_int(row.iloc[43]),
-                    # --- 院校基础信息 ---
                     "所在省": sanitize(row.iloc[46]),
                     "城市": sanitize(row.iloc[47]),
                     "城市水平标签": sanitize(row.iloc[48]),
@@ -545,30 +419,27 @@ def main():
     print("高考数据转换脚本 - Excel → JSON")
     print("=" * 60)
 
-    print("\n📁 [第一部分] 4-重庆高考历史数据 (2017-2024)")
+    print("\n📁 [第一部分] 省控线/批次线")
     print("-" * 50)
-    print("\n--- 1. 招生计划 ---")
-    convert_historical_enrollment_plans()
-    print("\n--- 2. 专业分数线 ---")
-    convert_historical_major_scores()
-    print("\n--- 3. 投档线 ---")
-    convert_historical_toudang_lines()
-    print("\n--- 4. 一分一段表 ---")
-    convert_score_distribution()
-    print("\n--- 5. 省控线/批次线 ---")
+    print("\n--- 1. 省控线/批次线 ---")
     convert_province_control_lines()
 
-    print("\n📁 [第二部分] 3-重庆录取数据22-25【持续更新】")
+    print("\n📁 [第二部分] 2026年招生计划")
     print("-" * 50)
-    print("\n--- 6. 院校录取分数 ---")
+    print("\n--- 2. 2026年招生计划 ---")
+    convert_enrollment_plans_2026()
+
+    print("\n📁 [第三部分] 近三年录取数据 (2022-2025)")
+    print("-" * 50)
+    print("\n--- 3. 院校录取分数 ---")
     convert_latest_school_scores()
-    print("\n--- 7. 专业录取分数 ---")
+    print("\n--- 4. 专业录取分数 ---")
     convert_latest_major_scores()
-    print("\n--- 8. 招生计划 ---")
+    print("\n--- 5. 招生计划 ---")
     convert_latest_enrollment_plans()
-    print("\n--- 9. 一分一段表 ---")
+    print("\n--- 6. 一分一段表 ---")
     convert_latest_score_distribution()
-    print("\n--- 10. 一表联动(综合大表) ---")
+    print("\n--- 7. 一表联动(综合大表) ---")
     convert_combined_table()
 
     # 汇总统计
@@ -578,7 +449,7 @@ def main():
     total_files = [f for f in os.listdir(OUTPUT_DIR) if f.endswith('.json')]
     for f in sorted(total_files):
         size = os.path.getsize(os.path.join(OUTPUT_DIR, f))
-        print(f"  {f} ({size/1024:.1f} KB)")
+        print(f"  {f} ({size/1021:.1f} KB)")
 
 
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 高考志愿推荐引擎 — 支持2026年分数自动换算，参考23-25年历年数据推荐
+新增：2026年招生计划查询（物理类/历史类本科批等）
 """
 import json
 import os
@@ -98,7 +99,6 @@ def format_history(h, equiv_scores, ref_score):
     for y in [2025, 2024, 2023]:
         if y in h and h[y]['最低分'] is not None:
             sc = float(h[y]['最低分'])
-            # 用该年自己的等效分作对比基准
             baseline = equiv_scores.get(y, ref_score)
             diff = sc - baseline
             if diff > 0:
@@ -112,17 +112,131 @@ def format_history(h, equiv_scores, ref_score):
             parts.append(f"{y}:--")
     return "  ".join(parts)
 
+def get_2026_plan_for_school(plans_2026, school_name, kelei_code, batch):
+    """获取某院校2026年招生计划总人数"""
+    total = 0
+    for p in plans_2026:
+        if (p.get('院校名称') == school_name and
+            p.get('科类') == kelei_code and
+            p.get('批次') == batch):
+            cnt = p.get('计划人数')
+            if cnt:
+                total += cnt
+    return total
+
+def get_2026_plan_for_major(plans_2026, school_name, major_name, kelei_code, batch):
+    """获取某专业2026年招生计划人数"""
+    for p in plans_2026:
+        if (p.get('院校名称') == school_name and
+            p.get('专业名称') == major_name and
+            p.get('科类') == kelei_code and
+            p.get('批次') == batch):
+            return p.get('计划人数')
+    return None
+
+def query_enrollment_plans(plans_2026):
+    """2026年招生计划查询模式"""
+    print("\n" + "=" * 60)
+    print("  📖 2026年重庆招生计划查询")
+    print("=" * 60)
+    
+    kelei_input = input("\n📌 科类 (1=物理类, 2=历史类, 回车默认物理类): ").strip()
+    kelei_code = "物理" if kelei_input in ("", "1") else "历史"
+    
+    batch_input = input("\n📌 批次 (1=本科批, 2=专科批, 3=本科提前批B段, 4=本科提前批A段, 回车显示所有批次): ").strip()
+    batch_map = {"1": "本科批", "2": "高职专科批", "3": "本科提前批B段", "4": "本科提前批A段其他类"}
+    batch_filter = batch_map.get(batch_input, None)
+    
+    query_type = input("\n📌 查询方式 (1=按院校名称查, 2=列出所有院校, 3=按专业关键词查, 回车默认列出所有): ").strip()
+    
+    # 筛选基础数据
+    filtered = plans_2026
+    if kelei_code:
+        filtered = [p for p in filtered if p.get('科类') == kelei_code]
+    if batch_filter:
+        filtered = [p for p in filtered if p.get('批次') == batch_filter]
+    
+    if query_type == "1":
+        school = input("\n📌 请输入院校名称（支持模糊搜索）: ").strip()
+        filtered = [p for p in filtered if school in str(p.get('院校名称', ''))]
+        if not filtered:
+            print(f"\n⚠ 未找到匹配 [{school}] 的记录")
+            return
+        # 按院校汇总
+        from collections import defaultdict
+        by_school = defaultdict(list)
+        for p in filtered:
+            by_school[p['院校名称']].append(p)
+        for sname, items in sorted(by_school.items()):
+            total_plan = sum(p.get('计划人数') or 0 for p in items)
+            print(f"\n  📍 {sname} — 总计划招生: {total_plan}人")
+            print(f"  {'专业名称':<30} {'代码':<6} {'计划':<6} {'学制':<4} {'学费':<10}")
+            print(f"  {'-'*30} {'-'*6} {'-'*6} {'-'*4} {'-'*10}")
+            for p in items:
+                print(f"  {str(p.get('专业名称',''))[:28]:<30} "
+                      f"{str(p.get('专业代码',''))[:6]:<6} "
+                      f"{str(p.get('计划人数',''))[:6]:<6} "
+                      f"{str(p.get('学制',''))[:4]:<4} "
+                      f"{str(p.get('学费',''))[:10]:<10}")
+                
+    elif query_type == "3":
+        keyword = input("\n📌 请输入专业关键词（如 计算机、医学、师范）: ").strip()
+        filtered = [p for p in filtered if keyword in str(p.get('专业名称', ''))]
+        if not filtered:
+            print(f"\n⚠ 未找到含关键词 [{keyword}] 的专业")
+            return
+        from collections import defaultdict
+        by_school = defaultdict(list)
+        for p in filtered:
+            by_school[p['院校名称']].append(p)
+        print(f"\n  🔍 含 \"{keyword}\" 的专业 (共{len(filtered)}条)")
+        for sname, items in sorted(by_school.items()):
+            print(f"\n  📍 {sname}")
+            for p in items:
+                plan = p.get('计划人数')
+                plan_str = f"{plan}人" if plan else "-"
+                print(f"      ├ {str(p.get('专业名称',''))[:24]:<24} 计划:{plan_str:<6} 学费:{p.get('学费','-')}")
+    else:
+        # 列出所有院校及其总计划
+        from collections import defaultdict
+        by_school = defaultdict(int)
+        for p in filtered:
+            by_school[p['院校名称']] += p.get('计划人数') or 0
+        print(f"\n  📋 共 {len(by_school)} 所院校: ")
+        print(f"  {'院校名称':<24} {'计划人数':<10}")
+        print(f"  {'-'*24} {'-'*10}")
+        for sname, total in sorted(by_school.items(), key=lambda x: -x[1]):
+            print(f"  {str(sname)[:22]:<24} {total:<10}")
+
+def mode_selection():
+    """选择模式"""
+    print("\n📌 选择模式:")
+    print("   1 = 志愿推荐模式（根据分数推荐院校和专业）")
+    print("   2 = 招生计划查询模式（查询2026年招生计划）")
+    mode = input("   请选择 (回车默认1): ").strip()
+    return "plan" if mode == "2" else "recommend"
+
 def main():
     schools = load("latest_school_scores.json")
     majors = load("latest_major_scores.json")
     control_lines = load("province_control_lines.json")
     dist_old = load("latest_score_distribution.json")
     dist_2026 = load("score_distribution_2026.json")
+    plans_2026 = load("enrollment_plans_2026.json")
 
     print("=" * 60)
-    print("  🎯 高考志愿推荐助手（参考23-25年历史数据）")
+    print("  🎯 高考志愿推荐助手（参考23-25年历史数据 + 26年招生计划）")
     print("=" * 60)
 
+    # 模式选择
+    mode = mode_selection()
+    
+    if mode == "plan":
+        query_enrollment_plans(plans_2026)
+        return
+
+    # ============ 推荐模式 ============
+    
     # 0. 年份
     year_input = input("\n📌 你的考试年份 (2026 或 2025，回车默认2026): ").strip()
     user_year = safe_int(year_input) or 2026
@@ -130,6 +244,8 @@ def main():
     # 1. 科类
     kelei_input = input("\n📌 你的科类 (1=物理类, 2=历史类, 直接回车默认物理类): ").strip()
     kelei = "物理类" if kelei_input in ("", "1") else "历史类"
+    # 2026年数据中科类简写为"物理"/"历史"
+    kelei_code = "物理" if kelei == "物理类" else "历史"
 
     # 2. 分数
     score_input = input("\n📌 你的分数: ").strip()
@@ -233,13 +349,14 @@ def main():
 
     # ==================== 输出 ====================
     print(f"\n{'='*60}")
-    print(f"  🏫 推荐结果（附23-25年历史分数线参考）")
+    print(f"  🏫 推荐结果（附23-25年历史分数线 + 26年计划人数）")
     print(f"  批次: {batch}  |  匹配分数范围: {lo_score}-{hi_score}分")
     if only_elite: print(f"  筛选: 仅985/211院校")
     if region: print(f"  地域: {region}")
     if major_pref: print(f"  专业方向: {major_pref}")
     print(f"{'='*60}")
     print(f"  (↑分数上涨  ↓分数下跌  =持平  对比{ref_score}分)")
+    print(f"  计划列 = 该校2026年在重庆该批次计划招生总人数")
 
     chongci = [c for c in candidates if float(c.get('最低分数', 0)) > ref_score]
     wentuo = [c for c in candidates if float(c.get('最低分数', 0)) == ref_score]
@@ -254,49 +371,56 @@ def main():
     for title, items in sections:
         if items:
             print(f"\n  {title}")
-            print(f"  {'院校名称':<22} {'省份':<6} {'25分':<6} {'25位次':<8} {'历年趋势(25/24/23)':<24}")
-            print(f"  {'-'*22} {'-'*6} {'-'*6} {'-'*8} {'-'*24}")
+            print(f"  {'院校名称':<20} {'省份':<5} {'25分':<6} {'25位次':<8} {'26计划':<8} {'历年趋势(25/24/23)':<24}")
+            print(f"  {'-'*20} {'-'*5} {'-'*6} {'-'*8} {'-'*8} {'-'*24}")
             for s in items:
                 name = s.get('院校名称', '')
                 hist = get_school_history(schools, name, kelei, batch)
                 trend = format_history(hist, equiv_scores, ref_score)
+                plan_2026 = get_2026_plan_for_school(plans_2026, name, kelei_code, batch)
+                plan_str = f"{plan_2026}人" if plan_2026 else "-"
                 tags = ""
                 if s.get('是否985') == '是': tags += "985 "
                 if s.get('是否211') == '是': tags += "211"
                 tag_str = f"({tags})" if tags else ""
 
-                line = f"  {str(name)[:22]:<22} {str(s.get('学校所在',''))[:6]:<6} " \
-                       f"{str(s.get('最低分数',''))[:6]:<6} {str(s.get('最低分位',''))[:8]:<8} {trend:<24}"
+                line = f"  {str(name)[:18]:<20} {str(s.get('学校所在',''))[:5]:<5} " \
+                       f"{str(s.get('最低分数',''))[:6]:<6} {str(s.get('最低分位',''))[:8]:<8} {plan_str:<8} {trend:<24}"
                 if tag_str:
                     line += f" {tag_str}"
                 print(line)
 
-    # ==================== 专业推荐（含历年） ====================
+    # ==================== 专业推荐（含历年 + 26计划） ====================
     if recommended_majors:
-        print(f"\n  📚 推荐专业（共 {len(recommended_majors)} 个，附历年分数）")
+        print(f"\n  📚 推荐专业（共 {len(recommended_majors)} 个，附历年分数 + 26年计划）")
         by_school = {}
         for m in recommended_majors:
             by_school.setdefault(m.get('院校名称', '未知'), []).append(m)
 
         for sname in sorted(by_school.keys()):
             majors_list = by_school[sname]
-            # 显示该院校历史最低分趋势
             sch_hist = get_school_history(schools, sname, kelei, batch)
             if sch_hist:
                 sch_trend = format_history(sch_hist, equiv_scores, ref_score)
             else:
                 sch_trend = ""
+
+            plan_total = get_2026_plan_for_school(plans_2026, sname, kelei_code, batch)
+            plan_info = f" 26年计划招{plan_total}人" if plan_total else ""
             
-            print(f"\n  📍 {sname[:20]:<20} 院校分数线: {sch_trend}")
+            print(f"\n  📍 {sname[:18]:<18} {sch_trend}  {plan_info}")
             
             majors_list.sort(key=lambda x: float(x.get('最低分数', 0) or 0), reverse=True)
             for m in majors_list[:5]:
                 major_name = m.get('专业名称', '')
                 m_hist = get_major_history(majors, sname, major_name, kelei, batch)
                 m_trend = format_history(m_hist, equiv_scores, ref_score)
-                print(f"      ├ {str(major_name)[:20]:<20} "
+                # 2026年该专业计划人数
+                plan_26 = get_2026_plan_for_major(plans_2026, sname, major_name, kelei_code, batch)
+                plan_str = f"26计划:{plan_26}人" if plan_26 else ""
+                print(f"      ├ {str(major_name)[:18]:<18} "
                       f"25年:最低{str(m.get('最低分数','')):<6} "
-                      f"位次{str(m.get('最低位次','')):<8}")
+                      f"位次{str(m.get('最低位次','')):<8} {plan_str}")
                 if m_trend:
                     print(f"      │  历年: {m_trend}")
             if len(majors_list) > 5:
@@ -315,6 +439,7 @@ def main():
         print(f"  • 保底 {len(baodi)} 所院校：确保有学可上")
     print(f"  • 建议采用 '冲-稳-保' 策略，比例约为 3:4:3")
     print(f"  • 历年趋势解读：↑表示该院校分数逐年上涨（更热门），↓表示下跌（可能更好考）")
+    print(f"  • 26年计划人数为官方发布的最新招生计划，可对比往年录取人数判断扩招/缩招")
     print(f"  • 以上推荐基于{ref_year}年录取数据换算，实际填报请以官方为准")
 
     try:

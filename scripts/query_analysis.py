@@ -33,16 +33,14 @@ def load(filename):
 def load_all():
     """延迟加载所有数据集（惰性求值）"""
     return {
-        "historical_enrollment_plans": lambda: load("historical_enrollment_plans.json"),
-        "historical_major_scores": lambda: load("historical_major_scores.json"),
-        "historical_toudang_lines": lambda: load("historical_toudang_lines.json"),
-        "historical_score_distribution": lambda: load("historical_score_distribution.json"),
         "province_control_lines": lambda: load("province_control_lines.json"),
         "latest_school_scores": lambda: load("latest_school_scores.json"),
         "latest_major_scores": lambda: load("latest_major_scores.json"),
         "latest_enrollment_plans": lambda: load("latest_enrollment_plans.json"),
         "latest_score_distribution": lambda: load("latest_score_distribution.json"),
         "combined_table": lambda: load("combined_table.json"),
+        "enrollment_plans_2026": lambda: load("enrollment_plans_2026.json"),
+        "score_distribution_2026": lambda: load("score_distribution_2026.json"),
     }
 
 
@@ -248,15 +246,6 @@ class QueryEngine:
                 for maj, score in top_majors:
                     print(f"      {maj[:20]:<22} 平均最低分: {score}")
 
-        # 历史数据
-        hist_major = self.get("historical_major_scores")
-        hist_results = filter_records(hist_major, 院校名称=(school_name, "contains"))
-        if hist_results:
-            by_year = group_and_aggregate(hist_results, '年份', '最低分', 'avg')
-            print(f"\n  历史年度最低分趋势:")
-            for y in sorted(by_year.keys()):
-                print(f"    {y}年: 平均最低分 {by_year[y]}")
-
         return results
 
     # ---------- 2. 按专业查询 ----------
@@ -275,15 +264,6 @@ class QueryEngine:
             results = filter_records(results, 年份=(years, 'in') if isinstance(years, list) else (years, 'eq'))
         if kelei:
             results = filter_records(results, 科类=(kelei, "contains"))
-
-        if not results:
-            # 也查历史数据
-            hist = self.get("historical_major_scores")
-            results = filter_records(hist, 专业名称=(major_name, "contains"))
-            if years:
-                results = filter_records(results, 年份=(years, 'in') if isinstance(years, list) else (years, 'eq'))
-            if kelei:
-                results = filter_records(results, 科类=(kelei, "contains"))
 
         if results:
             print(f"\n  📊 共 {len(results)} 条记录")
@@ -364,8 +344,6 @@ class QueryEngine:
         print(f"{'='*60}")
 
         dist = self.get("latest_score_distribution")
-        if not dist:
-            dist = self.get("historical_score_distribution")
 
         # 找到该年该科类的位次
         from_records = filter_records(dist, 年份=(year_from, 'eq'), 科类=(kelei, 'contains'))
