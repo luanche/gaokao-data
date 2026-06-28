@@ -8,12 +8,14 @@ import pandas as pd
 import json
 import os
 import re
+import sys
+import traceback
 from collections import defaultdict
 
 # ============== 配置 ==============
-DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                         "excel_data", "03、重庆-2026高考志愿填报资料")
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "json_data")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_ROOT = os.path.join(PROJECT_ROOT, "excel_data", "03、重庆-2026高考志愿填报资料")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "json_data")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ============== 工具函数 ==============
@@ -192,7 +194,6 @@ def convert_enrollment_plans_2026():
             print(f"  ✓ 读取: {fname} ({len(df)} 条记录)")
         except Exception as e:
             print(f"  ⚠ 读取失败: {fname} - {e}")
-            import traceback
             traceback.print_exc()
 
     save_json(all_records, "enrollment_plans_2026.json")
@@ -405,8 +406,46 @@ def convert_combined_table():
             return records
         except Exception as e:
             print(f"  ⚠ 读取失败: 22-25年重庆（一表联动）.xlsx - {e}")
-            import traceback
             traceback.print_exc()
+    return all_records
+
+
+# ================================================================
+def convert_score_distribution_2026():
+    """2026年重庆一分一段表 (物理类/历史类)"""
+    base = os.path.join(DATA_ROOT, "2-重庆26招生计划+政策汇总【持续更新】")
+    all_records = []
+    # 尝试多个可能的目录查找
+    for subdir in ["2-重庆2026一分一段表", "1-重庆2026一分一段表", "一分一段", "一分一段表"]:
+        search_path = os.path.join(base, subdir)
+        if os.path.isdir(search_path):
+            for fname in sorted(os.listdir(search_path)):
+                if not fname.endswith('.xlsx') or '副本' in fname:
+                    continue
+                fp = os.path.join(search_path, fname)
+                try:
+                    df = pd.read_excel(fp, sheet_name="Sheet1")
+                    for _, row in df.iterrows():
+                        record = {
+                            "年份": sanitize(row.get("年份")) or 2026,
+                            "科类": sanitize(row.get("科类")),
+                            "批次": sanitize(row.get("批次")),
+                            "控制线": parse_int(row.get("控制线(分)")),
+                            "分数": sanitize(row.get("分数(分)")),
+                            "本段人数": parse_int(row.get("本段人数(人)")),
+                            "累计人数": parse_int(row.get("累计人数(人)")),
+                            "排名区间": sanitize(row.get("排名区间")),
+                        }
+                        all_records.append(record)
+                    print(f"  ✓ 读取: {fname} (from {subdir})")
+                except Exception as e:
+                    print(f"  ⚠ 读取失败: {fname} - {e}")
+            if all_records:
+                break
+    if all_records:
+        save_json(all_records, "score_distribution_2026.json")
+    else:
+        print("  ⚠ 未找到2026一分一段表Excel文件，已跳过（可使用已有的JSON）")
     return all_records
 
 
@@ -424,10 +463,12 @@ def main():
     print("\n--- 1. 省控线/批次线 ---")
     convert_province_control_lines()
 
-    print("\n📁 [第二部分] 2026年招生计划")
+    print("\n📁 [第二部分] 2026年数据")
     print("-" * 50)
     print("\n--- 2. 2026年招生计划 ---")
     convert_enrollment_plans_2026()
+    print("\n--- 2b. 2026一分一段表 ---")
+    convert_score_distribution_2026()
 
     print("\n📁 [第三部分] 近三年录取数据 (2022-2025)")
     print("-" * 50)

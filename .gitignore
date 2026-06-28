@@ -10,10 +10,13 @@ Thumbs.db
 # Temp files
 *.tmp
 *.swp
-last_recommendation.txt
+.tmp/
 
 # Excel source data (user needs to download themselves)
 excel_data/
+
+# Last recommendation results (auto-generated)
+**/last_recommendation.txt
 
 # Node
 node_modules/

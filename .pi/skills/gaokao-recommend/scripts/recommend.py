@@ -6,8 +6,16 @@
 import json
 import os
 import sys
+from collections import defaultdict
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))), "json_data")
+# 统一路径解析：从当前脚本位置向上到项目根目录
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# .pi/skills/gaokao-recommend/scripts/ 向上5层到项目根
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR))))
+DATA_DIR = os.path.join(PROJECT_ROOT, "json_data")
+
+# 批次映射常量（多函数共用）
+BATCH_MAP = {"1": "本科批", "2": "高职专科批", "3": "本科提前批B段", "4": "本科提前批A段其他类"}
 
 def load(filename):
     path = os.path.join(DATA_DIR, filename)
@@ -144,8 +152,7 @@ def query_enrollment_plans(plans_2026):
     kelei_code = "物理" if kelei_input in ("", "1") else "历史"
     
     batch_input = input("\n📌 批次 (1=本科批, 2=专科批, 3=本科提前批B段, 4=本科提前批A段, 回车显示所有批次): ").strip()
-    batch_map = {"1": "本科批", "2": "高职专科批", "3": "本科提前批B段", "4": "本科提前批A段其他类"}
-    batch_filter = batch_map.get(batch_input, None)
+    batch_filter = BATCH_MAP.get(batch_input, None)
     
     query_type = input("\n📌 查询方式 (1=按院校名称查, 2=列出所有院校, 3=按专业关键词查, 回车默认列出所有): ").strip()
     
@@ -163,7 +170,6 @@ def query_enrollment_plans(plans_2026):
             print(f"\n⚠ 未找到匹配 [{school}] 的记录")
             return
         # 按院校汇总
-        from collections import defaultdict
         by_school = defaultdict(list)
         for p in filtered:
             by_school[p['院校名称']].append(p)
@@ -198,7 +204,6 @@ def query_enrollment_plans(plans_2026):
                 print(f"      ├ {str(p.get('专业名称',''))[:24]:<24} 计划:{plan_str:<6} 学费:{p.get('学费','-')}")
     else:
         # 列出所有院校及其总计划
-        from collections import defaultdict
         by_school = defaultdict(int)
         for p in filtered:
             by_school[p['院校名称']] += p.get('计划人数') or 0
@@ -274,8 +279,7 @@ def main():
     ref_score = equiv_scores.get(2025, score)
     
     batch_input = input(f"\n📌 批次 (1=本科批, 2=专科批, 3=本科提前批B段, 回车默认本科批): ").strip()
-    batch_map = {"1": "本科批", "2": "专科批", "3": "本科提前批B段"}
-    batch = batch_map.get(batch_input, "本科批")
+    batch = BATCH_MAP.get(batch_input, "本科批")
 
     range_input = input(f"\n📌 分数上下浮动范围 (默认 5 分，建议3-10): ").strip()
     score_range = safe_int(range_input) or 5

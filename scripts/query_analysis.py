@@ -10,7 +10,8 @@ from collections import defaultdict, Counter
 from datetime import datetime
 
 # ============== 配置 ==============
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "json_data")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(PROJECT_ROOT, "json_data")
 
 # ============== 数据加载 ==============
 _cache = {}
@@ -302,22 +303,24 @@ class QueryEngine:
             '科类': (kelei, 'contains'),
             '批次': (batch, 'contains'),
         }
-        if min_score:
-            filters['最低分数'] = (min_score, 'gte')
-        if max_score:
-            filters['最低分数'] = (max_score, 'lte')
-        if min_score and max_score:
-            filters['最低分数'] = (min_score, 'gte')
-            # 需要同时过滤两个条件，用复合逻辑
         if rank_max:
             filters['最低分位'] = (rank_max, 'lte')
 
         results = filter_records(records, **filters)
 
-        # 对于同时有 min_score 和 max_score，需要额外处理
-        if min_score and max_score:
-            results = [r for r in results if r.get('最低分数') is not None
-                       and min_score <= r['最低分数'] <= max_score]
+        # 分数范围过滤（直接过滤比用 filter_records 更清晰）
+        if min_score is not None or max_score is not None:
+            filtered = []
+            for r in results:
+                s = r.get('最低分数')
+                if s is None:
+                    continue
+                if min_score is not None and s < min_score:
+                    continue
+                if max_score is not None and s > max_score:
+                    continue
+                filtered.append(r)
+            results = filtered
 
         if results:
             print(f"\n  符合条件的院校: {len(results)} 所")

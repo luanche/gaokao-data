@@ -6,7 +6,9 @@
 import json
 import os
 
-DATA_DIR = "json_data"
+# 统一路径解析
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, "json_data")
 
 def load(filename):
     with open(os.path.join(DATA_DIR, filename), 'r', encoding='utf-8') as f:

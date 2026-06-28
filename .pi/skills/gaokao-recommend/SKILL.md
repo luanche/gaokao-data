@@ -123,6 +123,18 @@ cd /root/projects/gaokao-data && python3 .pi/skills/gaokao-recommend/scripts/rec
 cd /root/projects/gaokao-data && python3 .pi/skills/gaokao-recommend/scripts/generate_plan.py
 ```
 
+支持 CLI 参数自定义配置：
+```bash
+# 自定义分数
+python3 .pi/skills/gaokao-recommend/scripts/generate_plan.py --score 520
+
+# 自定义科类与批次
+python3 .pi/skills/gaokao-recommend/scripts/generate_plan.py --score 480 --kelei "历史类" --batch "本科批"
+
+# 加载完全自定义配置（学校/专业/分数等）
+python3 .pi/skills/gaokao-recommend/scripts/generate_plan.py --config my_config.json
+```
+
 输出文件：
 - `.tmp/志愿推荐.json` — 增强版JSON数据
 - `.tmp/志愿推荐.html` — 交互式志愿规划网页（直接在浏览器打开）
